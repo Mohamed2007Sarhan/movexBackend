@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MoveX — Super App Backend Console & Live Map</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Socket.io Client -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <style>
+    :root {
+      --bg-base: #0a0d14;
+      --bg-surface: #121824;
+      --bg-card: #182234;
+      --bg-hover: #222f47;
+      --border: #24324a;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --brand-primary: #06b6d4;
+      --brand-accent: #3b82f6;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #8b5cf6;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: rgba(18, 24, 36, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent));
+      border-radius: var(--radius-sm);
+      display: grid;
+      place-items: center;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge {
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: var(--brand-primary);
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 9999px;
+    }
+
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.825rem;
+    }
+
+    .status-chip {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.775rem;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    .status-dot.amber {
+      background: var(--accent-amber);
+      box-shadow: 0 0 8px var(--accent-amber);
+    }
+
+    /* Main Container Grid */
+    .dashboard-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 460px 1fr;
+      height: calc(100vh - 65px);
+      overflow: hidden;
+    }
+
+    @media (max-width: 1080px) {
+      .dashboard-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+    }
+
+    /* Left Sidebar: APIs & Tests */
+    .sidebar-pane {
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .section-box {
+      padding: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Quick Identity Picker */
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+
+    .role-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.6rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.825rem;
+      font-weight: 600;
+      text-align: left;
+      transition: all 0.2s ease;
+    }
+
+    .role-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--brand-primary);
+      transform: translateY(-1px);
+    }
+
+    .role-btn.active {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+    }
+
+    .user-pill {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.6rem 0.85rem;
+      font-size: 0.825rem;
+      margin-top: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    /* Tabbed Module Explorer */
+    .module-nav {
+      display: flex;
+      overflow-x: auto;
+      gap: 0.4rem;
+      padding: 0.75rem 1.25rem;
+      background: var(--bg-base);
+      border-bottom: 1px solid var(--border);
+      scrollbar-width: none;
+    }
+    .module-nav::-webkit-scrollbar { display: none; }
+
+    .module-tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 0.4rem 0.85rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.825rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .module-tab-btn:hover {
+      color: var(--text-main);
+      background: var(--bg-card);
+    }
+
+    .module-tab-btn.active {
+      color: #fff;
+      background: var(--brand-accent);
+      border-color: var(--brand-accent);
+    }
+
+    /* API Endpoint Cards */
+    .api-card-list {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .api-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      transition: border-color 0.2s;
+    }
+
+    .api-card:hover {
+      border-color: rgba(6, 182, 212, 0.5);
+    }
+
+    .api-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .endpoint-badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+    }
+
+    .badge-get { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.4); }
+    .badge-post { background: rgba(59, 130, 246, 0.2); color: var(--brand-accent); border: 1px solid rgba(59, 130, 246, 0.4); }
+    .badge-patch { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.4); }
+
+    .endpoint-path {
+      font-family: var(--font-mono);
+      font-size: 0.825rem;
+      color: var(--text-main);
+      font-weight: 600;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .api-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .api-controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    .btn-exec {
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent));
+      border: none;
+      color: #fff;
+      padding: 0.45rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: opacity 0.2s;
+    }
+
+    .btn-exec:hover {
+      opacity: 0.9;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.45rem 0.85rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-outline:hover {
+      background: var(--bg-hover);
+    }
+
+    /* Right Side: Map & Interactive Inspection Console */
+    .main-pane {
+      display: grid;
+      grid-template-rows: 52% 48%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-base);
+    }
+
+    /* Map Box */
+    .map-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #movex-map {
+      width: 100%;
+      height: 100%;
+      background: #111;
+    }
+
+    .map-floating-panel {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+      background: rgba(18, 24, 36, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.85rem 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+
+    .map-floating-panel h4 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .map-sim-btn {
+      background: var(--brand-accent);
+      border: none;
+      color: #fff;
+      padding: 0.45rem 0.85rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .map-sim-btn:hover {
+      background: #2563eb;
+    }
+
+    /* Lower Section: Split Console & Telemetry */
+    .console-split {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    @media (max-width: 800px) {
+      .console-split {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Response Inspector */
+    .response-pane {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      height: 100%;
+      overflow: hidden;
+      background: #0d1117;
+    }
+
+    .pane-header {
+      padding: 0.6rem 1rem;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+    .status-tag.ok { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .status-tag.err { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); }
+
+    .json-viewer {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.825rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Event Stream & Plan B Activity */
+    .stream-pane {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-surface);
+    }
+
+    .stream-list {
+      flex: 1;
+      padding: 0.75rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    .stream-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.5rem 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .stream-item.plan-b {
+      border-left: 3px solid var(--accent-amber);
+    }
+
+    .stream-item.sos {
+      border-left: 3px solid var(--accent-rose);
+      background: rgba(244, 63, 94, 0.1);
+    }
+
+    .stream-meta {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+    }
+
+    .stream-msg {
+      color: var(--text-main);
+    }
+
+    /* Modal / Inputs */
+    input, select, textarea {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.45rem 0.65rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      width: 100%;
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--brand-primary);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand-group">
+      <div class="brand-logo">M</div>
+      <div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <h1 class="brand-title">MoveX Super App</h1>
+          <span class="brand-badge">Unified Backend v2.0.0</span>
+        </div>
+        <p style="font-size: 0.725rem; color: var(--text-muted);">Shared Core & Multi-Service Orchestrator</p>
+      </div>
+    </div>
+
+    <div class="status-group">
+      <div class="status-chip">
+        <span class="status-dot" id="db-indicator"></span>
+        <span>PostgreSQL 18.4 (5433)</span>
+      </div>
+      <div class="status-chip">
+        <span class="status-dot" id="socket-indicator"></span>
+        <span id="socket-status-label">Socket.io Connected</span>
+      </div>
+      <div class="status-chip">
+        <span class="status-dot amber" id="planb-indicator"></span>
+        <span id="planb-status-label">Plan B Engine: Active</span>
+      </div>
+      <a href="/api-docs" target="_blank" class="btn-outline" style="text-decoration:none; display:flex; align-items:center; gap:0.35rem;">
+        <i class="fa-solid fa-book"></i> Swagger Docs
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Layout -->
+  <div class="dashboard-layout">
+    
+    <!-- LEFT SIDEBAR: Identities, Mode Switcher & API Center -->
+    <aside class="sidebar-pane">
+      
+      <!-- Identity & Role Selector -->
+      <div class="section-box">
+        <div class="section-title">
+          <span><i class="fa-solid fa-users"></i> Instant Auth Personas</span>
+          <span style="font-size:0.7rem; color:var(--brand-primary); cursor:pointer;" onclick="refreshContext()">↻ Refresh</span>
+        </div>
+        <div class="role-grid">
+          <button class="role-btn active" id="btn-role-customer" onclick="selectPersona('customer')">
+            <i class="fa-solid fa-user" style="color:var(--brand-primary);"></i>
+            <div>
+              <div>Customer Ali</div>
+              <small style="color:var(--text-muted); font-size:0.7rem;">+201000000001</small>
+            </div>
+          </button>
+
+          <button class="role-btn" id="btn-role-driver" onclick="selectPersona('driver')">
+            <i class="fa-solid fa-car" style="color:var(--accent-green);"></i>
+            <div>
+              <div>Driver Sedan</div>
+              <small style="color:var(--text-muted); font-size:0.7rem;">+201000000002</small>
+            </div>
+          </button>
+
+          <button class="role-btn" id="btn-role-van" onclick="selectPersona('van')">
+            <i class="fa-solid fa-truck" style="color:var(--accent-amber);"></i>
+            <div>
+              <div>Driver Van</div>
+              <small style="color:var(--text-muted); font-size:0.7rem;">+201000000004</small>
+            </div>
+          </button>
+
+          <button class="role-btn" id="btn-role-admin" onclick="selectPersona('admin')">
+            <i class="fa-solid fa-shield-halved" style="color:var(--accent-rose);"></i>
+            <div>
+              <div>System Admin</div>
+              <small style="color:var(--text-muted); font-size:0.7rem;">+201099999999</small>
+            </div>
+          </button>
+        </div>
+
+        <div class="user-pill" id="persona-summary-pill">
+          <div>
+            <strong id="active-user-name">Ali Ahmed</strong>
+            <div style="font-size: 0.725rem; color: var(--text-muted);" id="active-user-roles">Role: CUSTOMER | Wallet: $125.00</div>
+          </div>
+          <span class="status-tag ok" id="active-session-mode">MODE: CUSTOMER</span>
+        </div>
+
+        <!-- Single-Session Gateway Mode Switcher -->
+        <div style="margin-top:0.75rem; display:flex; align-items:center; gap:0.5rem;">
+          <select id="switch-mode-select" style="flex:1;">
+            <option value="customer">Switch Mode -> Customer App</option>
+            <option value="driver">Switch Mode -> Driver App</option>
+            <option value="worker">Switch Mode -> Handyman Worker App</option>
+            <option value="partner">Switch Mode -> Merchant Partner App</option>
+            <option value="admin">Switch Mode -> Admin Operations</option>
+          </select>
+          <button class="btn-outline" onclick="executeGatewaySwitch()">Switch</button>
+        </div>
+      </div>
+
+      <!-- Module Navigation Bar -->
+      <nav class="module-nav">
+        <button class="module-tab-btn active" onclick="switchTab('resilience')">Plan B Resilience</button>
+        <button class="module-tab-btn" onclick="switchTab('tracking')">Live Location & Map</button>
+        <button class="module-tab-btn" onclick="switchTab('food')">Food Delivery</button>
+        <button class="module-tab-btn" onclick="switchTab('ride')">Ride Bidding</button>
+        <button class="module-tab-btn" onclick="switchTab('moving')">Moving Capacity</button>
+        <button class="module-tab-btn" onclick="switchTab('wallet')">Wallet & Ledger</button>
+        <button class="module-tab-btn" onclick="switchTab('ai')">AI Suggestion</button>
+        <button class="module-tab-btn" onclick="switchTab('safety')">Safety & SOS</button>
+        <button class="module-tab-btn" onclick="switchTab('admin')"><i class="fa-solid fa-crown" style="color:var(--accent-amber);"></i> Company Admin</button>
+      </nav>
+
+      <!-- TAB 1: Plan B Resilience & Fault Tolerance -->
+      <div id="tab-resilience" class="api-card-list">
+        <div class="api-card" style="border-left: 3px solid var(--accent-amber);">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/resilience/status</span>
+          </div>
+          <p class="api-desc">Inspect Circuit Breakers states, fallback invocation counts, and health status.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('GET', '/api/resilience/status')"><i class="fa-solid fa-play"></i> Check Status</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/resilience/simulate-failure</span>
+          </div>
+          <p class="api-desc">Artificially cut Primary LLM or Maps service to test Plan B instant autonomous recovery.</p>
+          <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+            <select id="sim-fail-service" style="flex:1;">
+              <option value="ai_engine">ai_engine (Claude Sonnet 4.6)</option>
+              <option value="maps_routing_service">maps_routing_service (Maps Routing)</option>
+              <option value="notification_socket_dispatch">notification_socket_dispatch (Push)</option>
+            </select>
+            <select id="sim-fail-enable" style="width:110px;">
+              <option value="true">Enable Cut</option>
+              <option value="false">Restore</option>
+            </select>
+          </div>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="toggleSimulatedFailure()"><i class="fa-solid fa-bolt"></i> Apply Simulation</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/resilience/test-plan-b</span>
+          </div>
+          <p class="api-desc">Execute multi-system Plan B verification (AI fallback, Haversine routing fallback, Vehicle capacity escalation).</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('POST', '/api/resilience/test-plan-b', { testTarget: 'all' })"><i class="fa-solid fa-vial-circle-check"></i> Test All Fallbacks</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Live Location & Map -->
+      <div id="tab-tracking" class="api-card-list" style="display:none;">
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/tracking/live-providers</span>
+          </div>
+          <p class="api-desc">Fetch real-time coordinates of all active providers on the road in Cairo.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="refreshMapProviders()"><i class="fa-solid fa-map-pin"></i> Load Map Drivers</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/tracking/location</span>
+          </div>
+          <p class="api-desc">Send GPS telemetry ping as current provider (broadcasts live to subscribers).</p>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-bottom:0.75rem;">
+            <input type="number" id="loc-lat" placeholder="Latitude" value="30.0480" step="0.001">
+            <input type="number" id="loc-lng" placeholder="Longitude" value="31.2400" step="0.001">
+          </div>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="sendProviderGpsPing()"><i class="fa-solid fa-satellite-dish"></i> Send GPS Ping</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/tracking/simulate-step</span>
+          </div>
+          <p class="api-desc">Advance vehicle step along trip route and watch it move on the map.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="triggerSimulatedMovement()"><i class="fa-solid fa-play"></i> Step Vehicle Forward</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: Food Delivery -->
+      <div id="tab-food" class="api-card-list" style="display:none;">
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/food/vendors</span>
+          </div>
+          <p class="api-desc">Retrieve open restaurants and available catalog items.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('GET', '/api/food/vendors')"><i class="fa-solid fa-utensils"></i> View Vendors</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/food/orders</span>
+          </div>
+          <p class="api-desc">Create food order with 3-Way Atomic Wallet Split (Customer -> Vendor + Rider + Commission).</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="createSampleFoodOrder()"><i class="fa-solid fa-bag-shopping"></i> Place Food Order ($24)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: Ride Bidding -->
+      <div id="tab-ride" class="api-card-list" style="display:none;">
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/bidding/request</span>
+          </div>
+          <p class="api-desc">Customer publishes ride request to bidding pool.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="createRideBiddingRequest()"><i class="fa-solid fa-car-side"></i> Post Ride Request</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/bidding/request/:id/offer</span>
+          </div>
+          <p class="api-desc">Driver submits counter-offer with customized fare.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="submitDriverOffer()"><i class="fa-solid fa-tag"></i> Submit $18.5 Offer</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: Moving Capacity Check -->
+      <div id="tab-moving" class="api-card-list" style="display:none;">
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/moving/orders</span>
+          </div>
+          <p class="api-desc">Strict vehicle capacity hierarchy check (sedan < pickup < van < small_truck < large_truck).</p>
+          <div style="margin-bottom:0.75rem;">
+            <label style="font-size:0.75rem; color:var(--text-muted);">Required Vehicle Tier:</label>
+            <select id="moving-vehicle-type">
+              <option value="large_truck">large_truck (Matches heavy moves)</option>
+              <option value="van">van (Mid-size cargo)</option>
+              <option value="pickup">pickup (Small load)</option>
+              <option value="sedan">sedan (Personal courier)</option>
+            </select>
+          </div>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="createMovingOrder()"><i class="fa-solid fa-truck-ramp-box"></i> Book Moving Service</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 6: Wallet & Ledger -->
+      <div id="tab-wallet" class="api-card-list" style="display:none;">
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/wallet/balance</span>
+          </div>
+          <p class="api-desc">Fetch real-time zero-overdraft balance.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('GET', '/api/wallet/balance')"><i class="fa-solid fa-wallet"></i> Get Balance</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/wallet/topup</span>
+          </div>
+          <p class="api-desc">Add funds with concurrency protection and transaction logging.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('POST', '/api/wallet/topup', { amount: 50, paymentMethod: 'card' })"><i class="fa-solid fa-plus"></i> Topup $50</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/wallet/transactions</span>
+          </div>
+          <p class="api-desc">View double-entry immutable audit ledger.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('GET', '/api/wallet/transactions')"><i class="fa-solid fa-list-check"></i> Audit Transactions</button>
+          </div>
+        </div>
+
+        <div class="api-card" style="border-left: 3px solid var(--accent-green);">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/wallet/transfer</span>
+          </div>
+          <p class="api-desc">Peer-to-Peer Transfer: Send money to any user/driver wallet with zero-overdraft atomic ledger logging.</p>
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap:0.5rem; margin-bottom:0.75rem;">
+            <input type="text" id="transfer-recipient" value="+201000000002" placeholder="Recipient Phone or ID">
+            <input type="number" id="transfer-amount" value="15" placeholder="Amount ($)">
+          </div>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="executeP2PTransfer()"><i class="fa-solid fa-paper-plane"></i> Send Transfer ($15)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 7: AI Suggestion -->
+      <div id="tab-ai" class="api-card-list" style="display:none;">
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/ai/suggest</span>
+          </div>
+          <p class="api-desc">Intelligent Claude recommendation engine with automatic Plan B rule-engine fallback.</p>
+          <div style="margin-bottom:0.75rem;">
+            <input type="text" id="ai-user-prompt" value="Craving quick Egyptian food near downtown" placeholder="Enter AI prompt...">
+          </div>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="executeAiSuggest()"><i class="fa-solid fa-wand-magic-sparkles"></i> Get AI Recommendation</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 8: Safety & Verification -->
+      <div id="tab-safety" class="api-card-list" style="display:none;">
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/safety/otp/send</span>
+          </div>
+          <p class="api-desc">Generate 6-digit SMS verification code.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('POST', '/api/safety/otp/send', { phone: '+201000000001' })"><i class="fa-solid fa-mobile-screen"></i> Send SMS OTP</button>
+          </div>
+        </div>
+
+        <div class="api-card" style="border-left: 3px solid var(--accent-rose);">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/safety/sos</span>
+          </div>
+          <p class="api-desc">High-priority Emergency SOS trigger during ride/order.</p>
+          <div class="api-controls">
+            <button class="btn-exec" style="background:var(--accent-rose);" onclick="testApi('POST', '/api/safety/sos', { reason: 'Emergency medical assistance requested', currentLat: 30.0444, currentLng: 31.2357 })"><i class="fa-solid fa-triangle-exclamation"></i> Trigger SOS</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 9: Company Admin Control -->
+      <div id="tab-admin" class="api-card-list" style="display:none;">
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/admin/stats</span>
+          </div>
+          <p class="api-desc">Platform Analytics: Total users, orders, vendors, liquidity, pending KYC, and active SOS.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('GET', '/api/admin/stats')"><i class="fa-solid fa-chart-pie"></i> Platform Overview</button>
+          </div>
+        </div>
+
+        <div class="api-card" style="border-left: 3px solid var(--brand-primary);">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/admin/categories</span>
+          </div>
+          <p class="api-desc">Add ANY new service category dynamically to the system (e.g. Pharmacy, Grocery, Laundry, Pet Care).</p>
+          <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+            <input type="text" id="admin-new-cat-name" placeholder="Category Name" value="Grocery & Supermarket">
+          </div>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="adminCreateCategory()"><i class="fa-solid fa-folder-plus"></i> Create Category</button>
+            <button class="btn-outline" onclick="testApi('GET', '/api/admin/categories')">List All Categories</button>
+          </div>
+        </div>
+
+        <div class="api-card" style="border-left: 3px solid var(--accent-green);">
+          <div class="api-header">
+            <span class="endpoint-badge badge-post">POST</span>
+            <span class="endpoint-path">/api/admin/menu-items</span>
+          </div>
+          <p class="api-desc">Add new dish/product item to any vendor catalog in PostgreSQL.</p>
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap:0.5rem; margin-bottom:0.75rem;">
+            <input type="text" id="admin-new-item-name" placeholder="Item Name" value="Double Whopper BBQ Meal">
+            <input type="number" id="admin-new-item-price" placeholder="Price ($)" value="14.50" step="0.5">
+          </div>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="adminCreateMenuItem()"><i class="fa-solid fa-plus"></i> Add Item to Vendor</button>
+            <button class="btn-outline" onclick="testApi('GET', '/api/admin/menu-items')">List All Items</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/admin/wallet/ledger</span>
+          </div>
+          <p class="api-desc">Company Audit Ledger: View all platform financial transactions across all user accounts.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('GET', '/api/admin/wallet/ledger')"><i class="fa-solid fa-book-bookmark"></i> Audit Full Ledger</button>
+          </div>
+        </div>
+
+        <div class="api-card">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/admin/kyc</span>
+          </div>
+          <p class="api-desc">Driver KYC Submissions: Review national ID and vehicle license documents in PostgreSQL.</p>
+          <div class="api-controls">
+            <button class="btn-exec" onclick="testApi('GET', '/api/admin/kyc')"><i class="fa-solid fa-id-card"></i> Review Drivers KYC</button>
+          </div>
+        </div>
+
+        <div class="api-card" style="border-left: 3px solid var(--accent-rose);">
+          <div class="api-header">
+            <span class="endpoint-badge badge-get">GET</span>
+            <span class="endpoint-path">/api/admin/safety/incidents</span>
+          </div>
+          <p class="api-desc">Emergency Safety Incidents: Real-time list of all triggered SOS alerts in database.</p>
+          <div class="api-controls">
+            <button class="btn-exec" style="background:var(--accent-rose);" onclick="testApi('GET', '/api/admin/safety/incidents')"><i class="fa-solid fa-bell"></i> View SOS Incidents</button>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- RIGHT MAIN PANEL: Interactive Map & Live Console -->
+    <main class="main-pane">
+      
+      <!-- Upper Section: Interactive Leaflet Map -->
+      <div class="map-container">
+        <div id="movex-map"></div>
+        <div class="map-floating-panel">
+          <h4>Trip Live Telemetry</h4>
+          <div style="display:flex; justify-content:space-between; gap:1rem; font-size:0.75rem;">
+            <span>Distance: <strong id="telemetry-dist" style="color:var(--brand-primary);">9.18 km</strong></span>
+            <span>ETA: <strong id="telemetry-eta" style="color:var(--accent-green);">18 mins</strong></span>
+          </div>
+          <button class="map-sim-btn" onclick="startContinuousSimulation()">
+            <i class="fa-solid fa-play"></i> <span id="sim-btn-text">Run Live Trip Simulation</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lower Section: Response Inspector & WebSocket Log -->
+      <div class="console-split">
+        
+        <!-- Response Inspector -->
+        <div class="response-pane">
+          <div class="pane-header">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span>API Execution Response</span>
+              <span class="status-tag ok" id="resp-status">200 OK</span>
+              <span style="font-size:0.7rem; color:var(--text-muted);" id="resp-time">12ms</span>
+            </div>
+            <button class="btn-outline" style="font-size:0.7rem; padding:0.2rem 0.5rem;" onclick="copyResponse()">
+              <i class="fa-regular fa-copy"></i> Copy
+            </button>
+          </div>
+          <pre class="json-viewer" id="json-display">{
+  "status": "ready",
+  "service": "MoveX Backend Platform v2.0.0",
+  "message": "Click any API button or Persona on the left to execute live requests."
+}</pre>
+        </div>
+
+        <!-- Live WebSocket Event Stream -->
+        <div class="stream-pane">
+          <div class="pane-header">
+            <span><i class="fa-solid fa-rss"></i> Live Socket Feed</span>
+            <span style="font-size:0.7rem; color:var(--accent-green);"><i class="fa-solid fa-circle" style="font-size:6px;"></i> Active</span>
+          </div>
+          <div class="stream-list" id="event-stream">
+            <div class="stream-item">
+              <div class="stream-meta">
+                <span>SYSTEM</span>
+                <span>Just now</span>
+              </div>
+              <div class="stream-msg">MoveX Unified Event Bus initialized.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    // App State
+    let activeToken = "";
+    let activeUser = null;
+    let map = null;
+    let socket = null;
+    let driverMarker = null;
+    let pickupMarker = null;
+    let dropoffMarker = null;
+    let routeLine = null;
+    let simulationTimer = null;
+    let simRatio = 0.0;
+    let latestBiddingRequestId = null;
+
+    // Personas with pre-seeded phone numbers
+    const PERSONAS = {
+      customer: { phone: "+201000000001", password: "Password123!", role: "customer", label: "Ali Ahmed" },
+      driver: { phone: "+201000000002", password: "Password123!", role: "driver", label: "Tarek Driver (Sedan)" },
+      van: { phone: "+201000000004", password: "Password123!", role: "driver", label: "Kareem Van (Van)" },
+      admin: { phone: "+201099999999", password: "Password123!", role: "admin", label: "System Admin" }
+    };
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', async () => {
+      initMap();
+      initSockets();
+      await selectPersona('customer');
+      refreshMapProviders();
+    });
+
+    // 1. Leaflet Map Initialization
+    function initMap() {
+      // Cairo Coordinates
+      map = L.map('movex-map').setView([30.0444, 31.2357], 13);
+      
+      // Dark-themed tiles
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19
+      }).addTo(map);
+
+      // Create Route Polyline (Tahrir to Nasr City)
+      const pLoc = [30.0444, 31.2357];
+      const dLoc = [30.0754, 31.3204];
+
+      pickupMarker = L.marker(pLoc).addTo(map).bindPopup("<b>📍 Pickup: Tahrir Square</b>").openPopup();
+      dropoffMarker = L.marker(dLoc).addTo(map).bindPopup("<b>🏁 Dropoff: City Stars, Nasr City</b>");
+
+      routeLine = L.polyline([pLoc, [30.055, 31.265], [30.065, 31.295], dLoc], {
+        color: '#06b6d4',
+        weight: 4,
+        opacity: 0.8,
+        dashArray: '8, 8'
+      }).addTo(map);
+
+      // Driver marker
+      const carIcon = L.divIcon({
+        className: 'car-marker',
+        html: '<div style="background:#10b981; border:2px solid white; border-radius:50%; width:28px; height:28px; display:grid; place-items:center; color:white; box-shadow:0 0 10px #10b981;"><i class="fa-solid fa-car" style="font-size:12px;"></i></div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      driverMarker = L.marker(pLoc, { icon: carIcon }).addTo(map).bindPopup("<b>🚗 MoveX Driver on Route</b>");
+    }
+
+    // 2. Real-time Sockets Initialization
+    function initSockets() {
+      try {
+        socket = io({ auth: { token: activeToken } });
+
+        socket.on('connect', () => {
+          document.getElementById('socket-indicator').className = 'status-dot';
+          document.getElementById('socket-status-label').innerText = 'Socket.io Connected';
+          addStreamEvent('SOCKET', 'Connected to real-time event pipeline.');
+        });
+
+        socket.on('disconnect', () => {
+          document.getElementById('socket-indicator').className = 'status-dot amber';
+          document.getElementById('socket-status-label').innerText = 'Socket Reconnecting...';
+        });
+
+        // Listen for universal order events
+        socket.on('location:order_tracking', (data) => {
+          addStreamEvent('LOCATION PING', `Driver Lat: ${data.driverLat.toFixed(4)}, Lng: ${data.driverLng.toFixed(4)} | ETA: ${data.etaMinutes}m`);
+          if (driverMarker) {
+            driverMarker.setLatLng([data.driverLat, data.driverLng]);
+          }
+          if (data.etaMinutes) {
+            document.getElementById('telemetry-eta').innerText = `${data.etaMinutes} mins`;
+          }
+          if (data.distanceKm) {
+            document.getElementById('telemetry-dist').innerText = `${data.distanceKm} km`;
+          }
+        });
+
+        socket.on('notification:received', (data) => {
+          addStreamEvent('NOTIFICATION', `${data.title}: ${data.body}`);
+        });
+
+        socket.on('safety:emergency_sos', (data) => {
+          addStreamEvent('EMERGENCY SOS', `CRITICAL SOS: ${data.reason} at [${data.lat}, ${data.lng}]`, 'sos');
+        });
+
+      } catch (e) {
+        console.warn('Socket connection error:', e);
+      }
+    }
+
+    // 3. Persona Authentication
+    async function selectPersona(personaKey) {
+      document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-role-${personaKey}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const p = PERSONAS[personaKey];
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: p.phone, password: p.password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          activeToken = data.data.token;
+          activeUser = data.data.user;
+          document.getElementById('active-user-name').innerText = activeUser.name;
+          document.getElementById('active-user-roles').innerText = `Role: ${activeUser.roles.join(', ')}`;
+          document.getElementById('active-session-mode').innerText = `MODE: ${activeUser.role}`;
+
+          addStreamEvent('AUTH', `Switched session to ${activeUser.name} (${activeUser.role})`);
+          displayResponse(res.status, 15, data);
+        }
+      } catch (err) {
+        console.error('Persona auth failed', err);
+      }
+    }
+
+    // Single-Session Gateway Mode Switch
+    async function executeGatewaySwitch() {
+      const mode = document.getElementById('switch-mode-select').value;
+      const res = await testApi('POST', '/api/gateway/switch-mode', { targetMode: mode });
+      if (res && res.success) {
+        activeToken = res.data.token;
+        document.getElementById('active-session-mode').innerText = `MODE: ${mode.toUpperCase()}`;
+        addStreamEvent('GATEWAY', `Single-session context switched to: ${mode}`);
+      }
+    }
+
+    // 4. API Testing Utility
+    async function testApi(method, endpoint, body = null) {
+      const t0 = performance.now();
+      try {
+        const options = {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(activeToken ? { 'Authorization': `Bearer ${activeToken}` } : {})
+          }
+        };
+        if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+          options.body = JSON.stringify(body);
+        }
+
+        const res = await fetch(endpoint, options);
+        const data = await res.json();
+        const duration = Math.round(performance.now() - t0);
+
+        displayResponse(res.status, duration, data);
+
+        // Check if Plan B was activated in response
+        if (data.data?.planBActivated || data.data?.fallbackTriggered || data.data?.movingPlanB?.escalated) {
+          addStreamEvent('PLAN B ACTIVATED', `Fallback executed seamlessly on ${endpoint}`, 'plan-b');
+        }
+
+        return data;
+      } catch (err) {
+        const duration = Math.round(performance.now() - t0);
+        displayResponse(500, duration, { error: err.message });
+      }
+    }
+
+    function displayResponse(status, ms, data) {
+      const statusTag = document.getElementById('resp-status');
+      statusTag.innerText = `${status} ${status < 400 ? 'OK' : 'ERROR'}`;
+      statusTag.className = `status-tag ${status < 400 ? 'ok' : 'err'}`;
+      document.getElementById('resp-time').innerText = `${ms}ms`;
+      document.getElementById('json-display').innerText = JSON.stringify(data, null, 2);
+    }
+
+    function addStreamEvent(source, msg, type = 'normal') {
+      const list = document.getElementById('event-stream');
+      const item = document.createElement('div');
+      item.className = `stream-item ${type === 'plan-b' ? 'plan-b' : type === 'sos' ? 'sos' : ''}`;
+      const timeStr = new Date().toLocaleTimeString();
+      item.innerHTML = `
+        <div class="stream-meta">
+          <strong>${source}</strong>
+          <span>${timeStr}</span>
+        </div>
+        <div class="stream-msg">${msg}</div>
+      `;
+      list.prepend(item);
+    }
+
+    // Tab Switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.module-tab-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      document.querySelectorAll('.api-card-list').forEach(p => p.style.display = 'none');
+      document.getElementById(`tab-${tabId}`).style.display = 'flex';
+    }
+
+    // Specialized Action Handlers
+    async function toggleSimulatedFailure() {
+      const serviceName = document.getElementById('sim-fail-service').value;
+      const enable = document.getElementById('sim-fail-enable').value === 'true';
+      await testApi('POST', '/api/resilience/simulate-failure', { serviceName, enable });
+      addStreamEvent('RESILIENCE SIMULATION', `${serviceName} failure simulation = ${enable}`, 'plan-b');
+    }
+
+    async function executeAiSuggest() {
+      const prompt = document.getElementById('ai-user-prompt').value;
+      await testApi('POST', '/ai/suggest', {
+        service_type: 'food',
+        user_prompt: prompt,
+        location: { lat: 30.0444, lng: 31.2357 }
+      });
+    }
+
+    async function createSampleFoodOrder() {
+      await testApi('POST', '/api/orders', {
+        items: [{ productId: 'prod-zinger-combo', quantity: 2 }],
+        address: 'Tahrir Sq, Cairo',
+        phone: '+201000000001'
+      });
+    }
+
+    async function createRideBiddingRequest() {
+      const res = await testApi('POST', '/bidding/request', {
+        serviceCategoryId: 'cat-ride-standard',
+        pickupLat: 30.0444,
+        pickupLng: 31.2357,
+        dropoffLat: 30.0754,
+        dropoffLng: 31.3204,
+        suggestedPrice: 15.00
+      });
+      if (res?.data?.id) {
+        latestBiddingRequestId = res.data.id;
+        addStreamEvent('BIDDING', `Ride request ${latestBiddingRequestId} published.`);
+      }
+    }
+
+    async function submitDriverOffer() {
+      if (!latestBiddingRequestId) {
+        await createRideBiddingRequest();
+      }
+      await testApi('POST', `/bidding/request/${latestBiddingRequestId}/offer`, {
+        fareAmount: 18.50,
+        etaMinutes: 4
+      });
+    }
+
+    async function createMovingOrder() {
+      const vehicleType = document.getElementById('moving-vehicle-type').value;
+      await testApi('POST', '/api/moving/orders', {
+        pickupLat: 30.0444,
+        pickupLng: 31.2357,
+        dropoffLat: 30.0754,
+        dropoffLng: 31.3204,
+        address: 'Villa 12, Tagamoa, Cairo',
+        requiredVehicleType: vehicleType,
+        total: 120.00
+      });
+    }
+
+    async function sendProviderGpsPing() {
+      const lat = parseFloat(document.getElementById('loc-lat').value);
+      const lng = parseFloat(document.getElementById('loc-lng').value);
+      await testApi('POST', '/api/tracking/location', { lat, lng, speed: 45, heading: 90 });
+    }
+
+    async function refreshMapProviders() {
+      const res = await testApi('GET', '/api/tracking/live-providers');
+      if (res?.data && Array.isArray(res.data)) {
+        res.data.forEach(p => {
+          if (p.lat && p.lng) {
+            L.circleMarker([p.lat, p.lng], {
+              radius: 6,
+              fillColor: '#3b82f6',
+              color: '#fff',
+              weight: 2,
+              fillOpacity: 0.9
+            }).addTo(map).bindPopup(`<b>${p.name}</b><br>Type: ${p.vehicleType || 'Worker'}`);
+          }
+        });
+      }
+    }
+
+    // Live continuous ride simulation
+    function startContinuousSimulation() {
+      const btn = document.getElementById('sim-btn-text');
+      if (simulationTimer) {
+        clearInterval(simulationTimer);
+        simulationTimer = null;
+        btn.innerText = 'Run Live Trip Simulation';
+        return;
+      }
+
+      btn.innerText = 'Stop Simulation';
+      simRatio = 0.0;
+
+      simulationTimer = setInterval(() => {
+        simRatio += 0.05;
+        if (simRatio > 1.0) simRatio = 0.0;
+
+        const pLoc = [30.0444, 31.2357];
+        const dLoc = [30.0754, 31.3204];
+        const curLat = pLoc[0] + (dLoc[0] - pLoc[0]) * simRatio;
+        const curLng = pLoc[1] + (dLoc[1] - pLoc[1]) * simRatio;
+
+        if (driverMarker) {
+          driverMarker.setLatLng([curLat, curLng]);
+        }
+
+        const remKm = Math.round((9.18 * (1 - simRatio)) * 100) / 100;
+        const remEta = Math.max(1, Math.round(18 * (1 - simRatio)));
+        document.getElementById('telemetry-dist').innerText = `${remKm} km`;
+        document.getElementById('telemetry-eta').innerText = `${remEta} mins`;
+
+        // Emit through socket or stream event
+        if (Math.round(simRatio * 100) % 20 === 0) {
+          addStreamEvent('GPS SIM', `Vehicle at [${curLat.toFixed(4)}, ${curLng.toFixed(4)}] - ETA: ${remEta}m`);
+        }
+      }, 800);
+    }
+
+    async function executeP2PTransfer() {
+      const recipient = document.getElementById('transfer-recipient').value;
+      const amount = parseFloat(document.getElementById('transfer-amount').value);
+      const res = await testApi('POST', '/api/wallet/transfer', { recipient, amount, notes: 'P2P Transfer via Console' });
+      if (res?.data?.success) {
+        addStreamEvent('WALLET P2P', `Transferred $${amount} to ${recipient}`);
+      }
+    }
+
+    async function adminCreateCategory() {
+      const name = document.getElementById('admin-new-cat-name').value;
+      const res = await testApi('POST', '/api/admin/categories', { name });
+      if (res?.data?.category) {
+        addStreamEvent('ADMIN', `Created new service category: ${name}`);
+      }
+    }
+
+    async function adminCreateMenuItem() {
+      const name = document.getElementById('admin-new-item-name').value;
+      const price = parseFloat(document.getElementById('admin-new-item-price').value);
+      const res = await testApi('POST', '/api/admin/menu-items', {
+        vendorId: 'vendor-burger-king',
+        name,
+        price
+      });
+      if (res?.data?.item) {
+        addStreamEvent('CATALOG', `Added menu item '${name}' ($${price}) to database.`);
+      }
+    }
+
+    function copyResponse() {
+      const text = document.getElementById('json-display').innerText;
+      navigator.clipboard.writeText(text);
+      alert('Response JSON copied to clipboard!');
+    }
+  </script>
+</body>
+</html>

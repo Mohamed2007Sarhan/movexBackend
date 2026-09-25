@@ -1,0 +1,8 @@
+# Ignore installed dependencies
+node_modules/
+**/node_modules/
+
+dist/
+.env
+data/
+*.log
